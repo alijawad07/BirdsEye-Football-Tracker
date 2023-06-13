@@ -45,6 +45,13 @@ def detect_color(img):
 
     return assigned_color
 
+# Interpolate between two positions
+def interpolate_positions(pos1, pos2, factor=0.5):
+    x1, y1 = pos1
+    x2, y2 = pos2
+    new_x = int(x1 + (x2 - x1) * factor)
+    new_y = int(y1 + (y2 - y1) * factor)
+    return (new_x, new_y)
 
 def main(opt):
     CONFIDENCE_THRESHOLD = opt.conf_thresh
@@ -80,7 +87,11 @@ def main(opt):
 
     # Initialize a dictionary to store the last bounding box for each track
     last_info = {}
+    #last_circle_positions = {}
 
+    # Initialize a dictionary to store the last circle positions for each track
+    last_circle_positions = {}
+    
     while True:
         start = datetime.datetime.now()
         ret, frame = video_cap.read()
@@ -95,7 +106,7 @@ def main(opt):
         results = []
 
         # Output: Homography Matrix and Warped image
-        if frame_num % 5 == 0:  # Calculate the homography matrix every 5 frames
+        if frame_num % 2 == 0:  # Calculate the homography matrix every 5 frames
             M, warped_image = perspective_transform.homography_matrix(main_frame)
 
         if yoloOutput:
@@ -164,9 +175,17 @@ def main(opt):
                         cv2.putText(frame, label, (xmin + 5, ymin - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1, cv2.LINE_AA)
 
 
-                        # Store the bounding box coordinates in the last_bboxes dictionary
-                       # Store the bounding box coordinates and color in the last_info dictionary
-                        last_info[track_id] = {"bbox": (xmin, ymin, xmax, ymax), "color": color}
+                        # Store the circle position in the last_circle_positions dictionary
+                        if track_id in last_circle_positions:
+                            # Use interpolation to smooth the circle movement
+                            last_pos = last_circle_positions[track_id]
+                            new_pos = interpolate_positions(last_pos, coords)
+                            last_circle_positions[track_id] = new_pos
+                            coords = new_pos
+                            # Store the bounding box coordinates and color in the last_info dictionary
+                            last_info[track_id] = {"bbox": (xmin, ymin, xmax, ymax), "color": color, "coords" : coords}
+                        else:
+                            last_circle_positions[track_id] = coords
 
                         if color_tuple == (0, 0, 255):
                             # Draw the circle with track ID
@@ -185,20 +204,27 @@ def main(opt):
             for track_id, info in last_info.items():
                 xmin, ymin, xmax, ymax = info["bbox"]
                 color = info["color"]
+                coords = info["coords"]
                 color_tuple = tuple(map(int, color))
+                cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), color_tuple, 2)
                 
+                label = f"Player: {track_id}"
+                cv2.rectangle(frame, (xmin, ymin - 25), (xmin + len(label) * 7, ymin - 5), color_tuple, -1)
+                cv2.putText(frame, label, (xmin + 5, ymin - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1, cv2.LINE_AA)
+
                 if color_tuple == (0, 0, 255):
                     # Draw the circle with track ID in green
                     circle_radius = 12
-                    coords = transform_matrix(M, ((xmin + xmax) // 2, (ymin + ymax) // 2), (frame_height, frame_width), (gt_h, gt_w))
+                    #coords = transform_matrix(M, ((xmin + xmax) // 2, (ymin + ymax) // 2), (frame_height, frame_width), (gt_h, gt_w))
                     cv2.circle(bg_img, coords, circle_radius, color_tuple, -1)
                     cv2.putText(bg_img, str(track_id), (coords[0] - 8, coords[1] + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
                 elif color_tuple == (255, 255, 255):
                     # Draw the circle with track ID in black
                     circle_radius = 12
-                    coords = transform_matrix(M, ((xmin + xmax) // 2, (ymin + ymax) // 2), (frame_height, frame_width), (gt_h, gt_w))
+                    #coords = transform_matrix(M, ((xmin + xmax) // 2, (ymin + ymax) // 2), (frame_height, frame_width), (gt_h, gt_w))
                     cv2.circle(bg_img, coords, circle_radius, color_tuple, -1)
                     cv2.putText(bg_img, str(track_id), (coords[0] - 8, coords[1] + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+
 
         # Calculate the region of interest (ROI) for placing the bg_img
         roi = frame[-bg_img.shape[0]:, -bg_img.shape[1]:]
