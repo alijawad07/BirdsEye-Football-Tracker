@@ -32,9 +32,9 @@ pip install -r requirements.txt
 
 3. Download the models from [here](https://docs.google.com/uc?export=download&id=1EaBmCzl4xnuebfoQnxU1xQgNmBy7mWi2) and place them under ```weights/```.
 
-4. Run the bird_eye script:
+4. Run the birdeye script:
 ```
-python3 bird_eye.py --source --output --weights --conf-thresh
+python3 birdeye.py --source --output --weights --conf-thresh
 ```
 - --source => Path to directory containing video
 
